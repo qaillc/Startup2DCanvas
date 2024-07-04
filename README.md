@@ -43,7 +43,7 @@ Step 9 - Print the prompt in English
 Benja Gooder submitted an enhnaced version of this:
 
 -------------------------------
-OPTIMIZED PROMPT: Benja Gooder submitted an enhnaced 
+OPTIMIZED PROMPT: Benja Gooder submitted an enhnaced version
 -------------------------------
 Upon pressing "Create Abjad" perform the following 11 Steps (Print current prompt and highlight any tokens that have been changed between each step and the previous step. Also, if completing a step results in a loss of meaningful-meaning, then do not do it.):
 
