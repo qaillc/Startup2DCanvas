@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite 2D Canvas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #canvasContainer {
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 1px solid black;
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+        #controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 5px 10px;
+            font-size: 16px;
+        }
+        input[type="text"] {
+            width: 300px;
+        }
+        #largeNumberInput, #largeNumberInput2 {
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 10px;
+        }
+        #sliderContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+      .column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .number {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Infinite 2D Canvas</h1>
+    <div class="column">
+        <div class="number">Must Have - 1060980002300300000700026900077142592771144804002890033500082008600026601443</div>
+        <div class="number">Should Have - 1391600083002690007714259277114480400289003350086028119000873550000336</div>
+        <div>Adjad Prompt - https://chatgpt.com/g/g-fDWkxzX6M-abjad-prompt</div> 
+        <div>Tokenizer - https://huggingface.co/spaces/eaglelandsonce/Tokenizers4StartUp</div>
+    </div>
+    <p></p>
+    <input type="text" id="largeNumberInput" placeholder="Enter the first large number">
+    <input type="text" id="largeNumberInput2" placeholder="Enter the second large number">
+    <div id="canvasContainer">
+        <canvas id="infiniteCanvas" width="600" height="400"></canvas>
+        <p id="coordinates">Player coordinates: X: 0, Y: 0</p>
+        <p id="concatenatedCoordinates">Concatenated Coordinates: 0</p>
+    </div>
+    <div id="controls">
+        <button id="upBtn">↑</button>
+        <button id="downBtn">↓</button>
+        <button id="leftBtn">←</button>
+        <button id="rightBtn">→</button>
+        <input type="text" id="xInput" placeholder="X coordinate" readonly>
+        <input type="text" id="yInput" placeholder="Y coordinate" readonly>
+        <input type="text" id="xInput2" placeholder="X2 coordinate" readonly>
+        <input type="text" id="yInput2" placeholder="Y2 coordinate" readonly>
+        <button id="goToBtn">Go to Coordinates</button>
+        <button id="addObjectBtn">Add Object</button>
+    </div>
+    <div id="sliderContainer">
+        <input type="range" id="slider" min="-100" max="100" value="0">
+        <p id="sliderValue">Slider value: 0</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('infiniteCanvas');
+        const ctx = canvas.getContext('2d');
+        const coordsDisplay = document.getElementById('coordinates');
+        const concatenatedCoordsDisplay = document.getElementById('concatenatedCoordinates');
+        const largeNumberInput = document.getElementById('largeNumberInput');
+        const largeNumberInput2 = document.getElementById('largeNumberInput2');
+        const xInput = document.getElementById('xInput');
+        const yInput = document.getElementById('yInput');
+        const xInput2 = document.getElementById('xInput2');
+        const yInput2 = document.getElementById('yInput2');
+        const slider = document.getElementById('slider');
+        const sliderValueDisplay = document.getElementById('sliderValue');
+        let cameraOffset = { x: BigInt(0), y: BigInt(0) };
+        let objects = [];
+        const playerSize = 20;
+        const gridSize = BigInt(50);
+        let isDragging = false;
+        let lastMousePosition = { x: 0, y: 0 };
+        let point1 = { x: BigInt(0), y: BigInt(0) };
+        let point2 = { x: BigInt(0), y: BigInt(0) };
+
+        function splitLargeNumber(number) {
+            const sanitizedNumber = number.replace(/\D/g, '');  // Remove non-digit characters
+            const groups = sanitizedNumber.match(/.{1,5}/g) || [];  // Split into groups of 5
+            const midPoint = Math.ceil(groups.length / 2);
+            const yPart = groups.slice(0, midPoint).join('');
+            const xPart = groups.slice(midPoint).join('');
+            return { x: BigInt(xPart || '0'), y: BigInt(yPart || '0') };
+        }
+
+        function concatenateCoordinates(y, x) {
+            return BigInt(`${y}${x}`);
+        }
+
+        function updateConcatenatedCoordinates() {
+            const concatenatedNumber = concatenateCoordinates(cameraOffset.y, cameraOffset.x);
+            concatenatedCoordsDisplay.textContent = `Concatenated Coordinates: ${concatenatedNumber}`;
+        }
+
+        largeNumberInput.addEventListener('input', function() {
+            const { x, y } = splitLargeNumber(this.value);
+            point1 = { x, y };
+            xInput.value = x;
+            yInput.value = y;
+        });
+
+        largeNumberInput2.addEventListener('input', function() {
+            const { x, y } = splitLargeNumber(this.value);
+            point2 = { x, y };
+            xInput2.value = x;
+            yInput2.value = y;
+        });
+
+        slider.addEventListener('input', function() {
+            const t = parseFloat(this.value);
+            sliderValueDisplay.textContent = `Slider value: ${t}`;
+            const x = point1.x + (point2.x - point1.x) * BigInt(t) / BigInt(100);
+            const y = point1.y + (point2.y - point1.y) * BigInt(t) / BigInt(100);
+            moveCameraToCoordinates(x, y);
+        });
+
+        function drawGrid() {
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 0.5;
+            const startX = cameraOffset.x % gridSize;
+            const startY = cameraOffset.y % gridSize;
+            for (let x = Number(-startX); x < canvas.width; x += Number(gridSize)) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = Number(-startY); y < canvas.height; y += Number(gridSize)) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(canvas.width / 2 - playerSize / 2, canvas.height / 2 - playerSize / 2, playerSize, playerSize);
+        }
+
+        function drawObjects() {
+            objects.forEach(obj => {
+                const x = Number(obj.x - cameraOffset.x);
+                const y = Number(obj.y - cameraOffset.y);
+                if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+                    ctx.fillStyle = obj.color;
+                    ctx.fillRect(x, y, obj.size, obj.size);
+                }
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            drawObjects();
+            drawPlayer();
+            updateCoordinates();
+        }
+
+        function updateCoordinates() {
+            const playerX = cameraOffset.x + BigInt(canvas.width / 2);
+            const playerY = cameraOffset.y + BigInt(canvas.height / 2);
+            coordsDisplay.textContent = `Player coordinates: X: ${playerX}, Y: ${playerY}`;
+            updateConcatenatedCoordinates();
+        }
+
+        function moveCamera(dx, dy) {
+            cameraOffset.x += BigInt(dx);
+            cameraOffset.y += BigInt(dy);
+            draw();
+        }
+
+        function moveCameraToCoordinates(x, y) {
+            cameraOffset.x = x - BigInt(canvas.width / 2);
+            cameraOffset.y = y - BigInt(canvas.height / 2);
+            draw();
+        }
+
+        function addObject() {
+            const newObject = {
+                x: cameraOffset.x + BigInt(canvas.width / 2),
+                y: cameraOffset.y + BigInt(canvas.height / 2),
+                size: 10,
+                color: `rgb(${Math.random()*255},${Math.random()*255},${Math.random()*255})`
+            };
+            objects.push(newObject);
+            draw();
+        }
+
+        document.getElementById('upBtn').addEventListener('click', () => moveCamera(0, -5));
+        document.getElementById('downBtn').addEventListener('click', () => moveCamera(0, 5));
+        document.getElementById('leftBtn').addEventListener('click', () => moveCamera(-5, 0));
+        document.getElementById('rightBtn').addEventListener('click', () => moveCamera(5, 0));
+        document.getElementById('goToBtn').addEventListener('click', () => {
+            const x = BigInt(xInput.value || 0);
+            const y = BigInt(yInput.value || 0);
+            moveCameraToCoordinates(x, y);
+        });
+        document.getElementById('addObjectBtn').addEventListener('click', addObject);
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            if (Math.abs(mouseX - centerX) <= playerSize / 2 && Math.abs(mouseY - centerY) <= playerSize / 2) {
+                isDragging = true;
+                lastMousePosition = { x: e.clientX, y: e.clientY };
+                canvas.style.cursor = 'grabbing';
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - lastMousePosition.x;
+                const dy = e.clientY - lastMousePosition.y;
+                moveCamera(-dx, -dy);
+                lastMousePosition = { x: e.clientX, y: e.clientY };
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'grab';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            canvas.style.cursor = 'grab';
+        });
+
+        window.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    moveCamera(0, -5);
+                    break;
+                case 'ArrowDown':
+                    moveCamera(0, 5);
+                    break;
+                case 'ArrowLeft':
+                    moveCamera(-5, 0);
+                    break;
+                case 'ArrowRight':
+                    moveCamera(5, 0);
+                    break;
+                case ' ':
+                    addObject();
+                    break;
+            }
+        });
+
+        draw();
+    </script>
+</body>
+</html>
